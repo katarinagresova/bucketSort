@@ -36,7 +36,6 @@ proc=$(expr $proc - 1)
 log_proc=$(log2 $proc)
 pow2=$(echo $((2 ** $log_proc)))
 proc=$(($pow2 - 1))
-echo $proc
 
 #run
 mpirun --prefix /usr/local/share/OpenMPI -np $proc bks $numbers

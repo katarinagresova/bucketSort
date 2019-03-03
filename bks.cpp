@@ -98,8 +98,7 @@ vector<int> mergeSortedVectors(vector<int> a, vector<int> b) {
     vector<int> c(tlen);
     int i = 0, j = 0, k = 0;
  
-    while (i < alen && j < blen)
-    {
+    while (i < alen && j < blen) {
         if (a[i] < b[j])
             c[k++] = a[i++];
         else
@@ -125,12 +124,10 @@ int main(int argc, char *argv[]) {
 	int numprocs;               // number of procesors
 	unsigned numberOfLeafs;	    // number of leaf processors
 	int myid;                   // my rank
-	int neighnumber;            // neighbour rank
 	unsigned inputSize;		    // number of input numbers
-	int mynumber;               // my valuei
-	unsigned msgSize;
-	unsigned inputPowerOfTwo;
-	vector<int> bucket;	    // all values of this process
+	int mynumber;               // my value
+	unsigned msgSize;			// size of leaf bucket
+	vector<int> bucket;	    	// all values of this process
 	MPI_Status stat;            // struct- contains kod- source, tag, error
 
 	//MPI INIT
@@ -140,28 +137,29 @@ int main(int argc, char *argv[]) {
 
 	numberOfLeafs = (numprocs + 1) / 2;
 
-	// master process
+	// master process - reading and distributing input
 	if (myid == MASTER) {
 		vector<int> numbers = readInput();
 		inputSize = numbers.size();
 
-		inputPowerOfTwo = nextPowerOf2(inputSize);
-		msgSize = inputPowerOfTwo / numberOfLeafs;
-		cout << "msgsize: " << msgSize << endl;
-	
-		for (int i = 0; i < inputPowerOfTwo - inputSize; i++) {
+		// round to input to be able to evenly distribute it among lefs
+		while (inputSize % numberOfLeafs != 0) {
 			numbers.push_back(-1);
+			inputSize++;
 		}
+		msgSize = inputSize / numberOfLeafs;
+	
+		// distribute numbers
 		for (int i = 0; i < numberOfLeafs; i++) {
 			for (int j = 0; j < msgSize; j++) {
 				MPI_Send(&numbers[i * msgSize + j], 1, MPI_INT, (i % numberOfLeafs) + (numberOfLeafs - 1), TAG_DISTRIBUTE, MPI_COMM_WORLD);
 			}
 		} 
 	}
-	MPI_Bcast(&msgSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
-	MPI_Barrier(MPI_COMM_WORLD);
 
-	// leafs
+	MPI_Bcast(&msgSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	// leafs - sort its own part
 	if (myid >= numprocs - numberOfLeafs) {
 		for (int i = 0; i < msgSize; i++) {
 			MPI_Recv(&mynumber, 1, MPI_INT, 0, TAG_DISTRIBUTE, MPI_COMM_WORLD, &stat); //buffer,velikost,typ,rank odesilatele,tag, skupina, stat
@@ -170,11 +168,12 @@ int main(int argc, char *argv[]) {
 		heapSort(&bucket[0], msgSize);
 	}
 
-	MPI_Barrier(MPI_COMM_WORLD);
-
 	int levelStart = numprocs - numberOfLeafs;
 	int levelEnd = numprocs - 1;
+	// main sorting loop
 	for (int j = 0; j < log2(numberOfLeafs); j++) {
+
+		// low level - sending numbers
 		if (myid >= levelStart && myid <= levelEnd) {
 			for(int i = 0; i < msgSize * pow(2, j); ++i) {
 				MPI_Send(&bucket[i], 1, MPI_INT, floor((myid - 1) / 2), TAG_REDUCE, MPI_COMM_WORLD);
@@ -185,18 +184,18 @@ int main(int argc, char *argv[]) {
 		levelEnd = levelStart - 1;
 		levelStart = levelStart - (levelSize / 2);
 
+		// high level - receiving numbers and merging
 		if (myid >= levelStart && myid <= levelEnd) {
 			vector<int> smallBucketOne;
 
-			for(int i=0; i < msgSize * pow(2, j); ++i) {
+			for (int i = 0; i < msgSize * pow(2, j); ++i) {
 				MPI_Recv(&mynumber, 1, MPI_INT, 2 * myid + 1, TAG_REDUCE, MPI_COMM_WORLD, &stat);
 				smallBucketOne.push_back(mynumber);
 			}
 
 			vector<int> smallBucketTwo;
-			for(int i=0; i < msgSize * pow(2, j); ++i) {
+			for(int i = 0; i < msgSize * pow(2, j); ++i) {
 				MPI_Recv(&mynumber, 1, MPI_INT, 2 * myid + 2, TAG_REDUCE, MPI_COMM_WORLD, &stat);
-
 				smallBucketTwo.push_back(mynumber);
 			}
 
@@ -204,9 +203,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	MPI_Barrier(MPI_COMM_WORLD);
-
-	// master process
+	// master process - root - print result
 	if (myid == MASTER) {
 		for(int i=0; i < bucket.size(); ++i) {
 			if (bucket[i] != -1) {
