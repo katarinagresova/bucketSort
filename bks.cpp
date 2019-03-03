@@ -9,6 +9,7 @@ using namespace std;
 #define INPUT "numbers"
 #define TAG_DISTRIBUTE 0
 #define TAG_REDUCE 1
+#define MEASURE true
 
 // To heapify a subtree rooted with node i which is 
 // an index in arr[]. n is size of heap 
@@ -80,14 +81,18 @@ vector<int> readInput() {
 		if (!fin.good()) {
 			break;
 		}
-		if (!numbers.empty()) {
-			cout << " ";
+		if (!MEASURE) {
+			if (!numbers.empty()) {
+				cout << " ";
+			}
+			cout << number;
 		}
-		cout << number;
 		numbers.push_back(number);
 	}
 	fin.close();
-	cout << endl;
+	if (!MEASURE) {
+		cout << endl;
+	}
 	return numbers;
 }
 
@@ -114,6 +119,26 @@ vector<int> mergeSortedVectors(vector<int> a, vector<int> b) {
 }
 
 /**
+ * Measure time and print result to std out, it make diff of start time and end time
+ * Source: http://www.guyrutenberg.com/2007/09/22/profiling-code-using-clock_gettime/
+ * @param timeStart
+ * @param timeEnd
+ */
+void measureTime(timespec timeStart, timespec timeEnd) {
+    timespec timeTemp;
+    if ((timeEnd.tv_nsec - timeStart.tv_nsec) < 0)
+    {
+        timeTemp.tv_sec = timeEnd.tv_sec - timeStart.tv_sec - 1;
+        timeTemp.tv_nsec = 1000000000 + timeEnd.tv_nsec - timeStart.tv_nsec;
+    } else
+    {
+        timeTemp.tv_sec = timeEnd.tv_sec - timeStart.tv_sec;
+        timeTemp.tv_nsec = timeEnd.tv_nsec - timeStart.tv_nsec;
+    }
+    cout<< timeTemp.tv_sec << ":" << timeTemp.tv_nsec << endl;
+}
+
+/**
  * Main function
  * @param argc number of arguments on command line
  * @param argv "array" of arguments
@@ -136,6 +161,8 @@ int main(int argc, char *argv[]) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &myid);           // get rank of my process
 
 	numberOfLeafs = (numprocs + 1) / 2;
+	timespec timeStart;
+    timespec timeEnd;
 
 	// master process - reading and distributing input
 	if (myid == MASTER) {
@@ -149,6 +176,10 @@ int main(int argc, char *argv[]) {
 		}
 		msgSize = inputSize / numberOfLeafs;
 	
+		if(MEASURE) {
+		    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeStart);
+		}
+
 		// distribute numbers
 		for (int i = 0; i < numberOfLeafs; i++) {
 			for (int j = 0; j < msgSize; j++) {
@@ -205,12 +236,17 @@ int main(int argc, char *argv[]) {
 
 	// master process - root - print result
 	if (myid == MASTER) {
-		for(int i=0; i < bucket.size(); ++i) {
-			if (bucket[i] != -1) {
-        		cout << bucket[i] << endl;
-        	}
+		if(MEASURE) {
+	        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeEnd);
+	        measureTime(timeStart, timeEnd);
+	    } else {
+			for(int i=0; i < bucket.size(); ++i) {
+				if (bucket[i] != -1) {
+	        		cout << bucket[i] << endl;
+	        	}
+			}
 		}
-	}	
+	}
 
 	MPI_Finalize(); 
 	return 0;
