@@ -8,6 +8,7 @@ using namespace std;
 #define MASTER 0
 #define INPUT "numbers"
 #define TAG_DISTRIBUTE 0
+#define TAG_REDUCE 1
 
 // To heapify a subtree rooted with node i which is 
 // an index in arr[]. n is size of heap 
@@ -51,15 +52,20 @@ void heapSort(int arr[], int n) {
 	} 
 }
 
-int next_power_of_two(int f){
-    int b = f << 9 != 0; // If we're a power of two this is 0, otherwise this is 1
-
-    f >>= 23; // remove factional part of floating point number
-    f -= 127; // subtract 127 (the bias) from the exponent
-
-    // adds one to the exponent if were not a power of two, 
-    // then raises our new exponent to the power of two again.
-    return (1 << (f + b)); 
+// compute power of two greater than or equal to n
+unsigned nextPowerOf2(unsigned n) {
+	// decrement n (to handle the case when n itself is a power of 2)
+	n--;
+	
+	// Set all bits after the last set bit
+	n |= n >> 1;
+	n |= n >> 2;
+	n |= n >> 4;
+	n |= n >> 8;
+	n |= n >> 16;
+	
+	// increment n and return
+	return ++n;
 }
 
 vector<int> readInput() {
@@ -85,6 +91,29 @@ vector<int> readInput() {
 	return numbers;
 }
 
+vector<int> mergeSortedVectors(vector<int> a, vector<int> b) {
+    int alen = a.size();
+    int blen = b.size();
+    int tlen = alen + blen;
+    vector<int> c(tlen);
+    int i = 0, j = 0, k = 0;
+ 
+    while (i < alen && j < blen)
+    {
+        if (a[i] < b[j])
+            c[k++] = a[i++];
+        else
+            c[k++] = b[j++];
+    }
+    while (i < alen)
+        c[k++] = a[i++];
+ 
+    while (j < blen)
+        c[k++] = b[j++];
+ 
+    return c;
+}
+
 /**
  * Main function
  * @param argc number of arguments on command line
@@ -94,13 +123,13 @@ vector<int> readInput() {
 int main(int argc, char *argv[]) {
 
 	int numprocs;               // number of procesors
-	int numberOfLeafs;	    // number of leaf processors
+	unsigned numberOfLeafs;	    // number of leaf processors
 	int myid;                   // my rank
 	int neighnumber;            // neighbour rank
-	int inputSize;		    // number of input numbers
+	unsigned inputSize;		    // number of input numbers
 	int mynumber;               // my valuei
-	int msgSize;
-	int inputPowerOfTwo;
+	unsigned msgSize;
+	unsigned inputPowerOfTwo;
 	vector<int> bucket;	    // all values of this process
 	MPI_Status stat;            // struct- contains kod- source, tag, error
 
@@ -110,31 +139,22 @@ int main(int argc, char *argv[]) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &myid);           // get rank of my process
 
 	numberOfLeafs = (numprocs + 1) / 2;
-	cout << "numberOfLeafs: " << numberOfLeafs << endl;	
 
 	// master process
 	if (myid == MASTER) {
 		vector<int> numbers = readInput();
 		inputSize = numbers.size();
 
-		cout << "inputSize " << inputSize << endl; 
-		int powerOfTwo = next_power_of_two(inputSize);
-		inputPowerOfTwo = pow(2, powerOfTwo);
-
+		inputPowerOfTwo = nextPowerOf2(inputSize);
 		msgSize = inputPowerOfTwo / numberOfLeafs;
-		cout << "real msgSize " << msgSize << endl;
+		cout << "msgsize: " << msgSize << endl;
 	
 		for (int i = 0; i < inputPowerOfTwo - inputSize; i++) {
 			numbers.push_back(-1);
 		}
-		for(int i=0; i < numbers.size(); ++i)
-                        std::cout << numbers[i] << ' ';
-		cout << "powe of two" << inputPowerOfTwo << endl;
 		for (int i = 0; i < numberOfLeafs; i++) {
-			cout << "sending data" << endl;
 			for (int j = 0; j < msgSize; j++) {
-				cout << i * numberOfLeafs + j << ": " << numbers[i * numberOfLeafs + j] << endl;
-				MPI_Send(&numbers[i * numberOfLeafs + j], 1, MPI_INT, (i % numberOfLeafs) + (numberOfLeafs - 1), TAG_DISTRIBUTE, MPI_COMM_WORLD);
+				MPI_Send(&numbers[i * msgSize + j], 1, MPI_INT, (i % numberOfLeafs) + (numberOfLeafs - 1), TAG_DISTRIBUTE, MPI_COMM_WORLD);
 			}
 		} 
 	}
@@ -142,17 +162,58 @@ int main(int argc, char *argv[]) {
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	// leafs
-	if (myid > numprocs - numberOfLeafs - 1) {
-
-		cout << "msgSize " << msgSize << endl;
-
-		cout << "wainting to receive\n";
+	if (myid >= numprocs - numberOfLeafs) {
 		for (int i = 0; i < msgSize; i++) {
 			MPI_Recv(&mynumber, 1, MPI_INT, 0, TAG_DISTRIBUTE, MPI_COMM_WORLD, &stat); //buffer,velikost,typ,rank odesilatele,tag, skupina, stat
 			bucket.push_back(mynumber);
-			cout<<"i am:"<<myid<< " number: " << mynumber << endl;
+		}
+		heapSort(&bucket[0], msgSize);
+	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	int levelStart = numprocs - numberOfLeafs;
+	int levelEnd = numprocs - 1;
+	for (int j = 0; j < log2(numberOfLeafs); j++) {
+		if (myid >= levelStart && myid <= levelEnd) {
+			for(int i = 0; i < msgSize * pow(2, j); ++i) {
+				MPI_Send(&bucket[i], 1, MPI_INT, floor((myid - 1) / 2), TAG_REDUCE, MPI_COMM_WORLD);
+			}
+		}
+
+		int levelSize = levelEnd - levelStart + 1;
+		levelEnd = levelStart - 1;
+		levelStart = levelStart - (levelSize / 2);
+
+		if (myid >= levelStart && myid <= levelEnd) {
+			vector<int> smallBucketOne;
+
+			for(int i=0; i < msgSize * pow(2, j); ++i) {
+				MPI_Recv(&mynumber, 1, MPI_INT, 2 * myid + 1, TAG_REDUCE, MPI_COMM_WORLD, &stat);
+				smallBucketOne.push_back(mynumber);
+			}
+
+			vector<int> smallBucketTwo;
+			for(int i=0; i < msgSize * pow(2, j); ++i) {
+				MPI_Recv(&mynumber, 1, MPI_INT, 2 * myid + 2, TAG_REDUCE, MPI_COMM_WORLD, &stat);
+
+				smallBucketTwo.push_back(mynumber);
+			}
+
+			bucket = mergeSortedVectors(smallBucketOne, smallBucketTwo);
 		}
 	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	// master process
+	if (myid == MASTER) {
+		for(int i=0; i < bucket.size(); ++i) {
+			if (bucket[i] != -1) {
+        		cout << bucket[i] << endl;
+        	}
+		}
+	}	
 
 	MPI_Finalize(); 
 	return 0;
