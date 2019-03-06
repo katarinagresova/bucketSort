@@ -9,10 +9,15 @@ using namespace std;
 #define INPUT "numbers"
 #define TAG_DISTRIBUTE 0
 #define TAG_REDUCE 1
-#define MEASURE true
+#define MEASURE false
 
-// To heapify a subtree rooted with node i which is 
-// an index in arr[]. n is size of heap 
+/**
+ * Heapifies a subtree rooted with node i
+ * Source: https://www.geeksforgeeks.org/cpp-program-for-heap-sort/
+ * @param arr heap
+ * @param n   size of heap
+ * @param i   root of subtree
+ */
 void heapify(int arr[], int n, int i) { 
 	int largest = i; // Initialize largest as root 
 	int l = 2 * i + 1; // left = 2*i + 1 
@@ -37,6 +42,12 @@ void heapify(int arr[], int n, int i) {
 	} 
 } 
 
+/**
+ * Sequential sorting algorithm with O(n.log(n))
+ * Source: https://www.geeksforgeeks.org/cpp-program-for-heap-sort/
+ * @param arr array to sort
+ * @param n   number of elements in array
+ */
 void heapSort(int arr[], int n) { 
 	// Build heap (rearrange array) 
 	for (int i = n / 2 - 1; i >= 0; i--) { 
@@ -53,7 +64,11 @@ void heapSort(int arr[], int n) {
 	} 
 }
 
-// compute power of two greater than or equal to n
+/**
+ * Computes power of two greater than or equal to given number
+ * @param  n number to "round"
+ * @return   "rounded" number
+ */
 unsigned nextPowerOf2(unsigned n) {
 	// decrement n (to handle the case when n itself is a power of 2)
 	n--;
@@ -65,37 +80,60 @@ unsigned nextPowerOf2(unsigned n) {
 	n |= n >> 8;
 	n |= n >> 16;
 	
-	// increment n and return
 	return ++n;
 }
 
+/**
+ * Reads numbers from input file
+ * @return	vector with readed numbers
+ */
 vector<int> readInput() {
-	int number;
-	int invar = 0;
 	vector<int> numbers;
 	fstream fin; 
 	fin.open(INPUT, ios::in); 
 
 	while (fin.good()) {
-		number = fin.get();
+		int number = fin.get();
+
+		//stop after reading end of file
 		if (!fin.good()) {
 			break;
-		}
-		if (!MEASURE) {
-			if (!numbers.empty()) {
-				cout << " ";
-			}
-			cout << number;
 		}
 		numbers.push_back(number);
 	}
 	fin.close();
-	if (!MEASURE) {
-		cout << endl;
-	}
 	return numbers;
 }
 
+/**
+ * Prints elements of vector separated by space
+ * @param numbers vector to print
+ */
+void printVectorInRow(vector<int> numbers) {
+	for (int i = 0; i < numbers.size() - 1; ++i) {
+		cout << numbers[i] << " ";
+	}
+	cout << numbers[numbers.size() - 1] << endl;
+}
+
+/**
+ * Prints elements separated by new line. Also filters additional -1s.
+ * @param numbers vector to print
+ */
+void printVectorInColumn(vector<int> numbers) {
+	for(int i = 0; i < numbers.size(); ++i) {
+		if (numbers[i] != -1) {
+    		cout << numbers[i] << endl;
+    	}
+	}
+}
+
+/**
+ * Merges two sorted vectors into one sorted vector
+ * @param a 	first sorted vector to merge
+ * @param b 	second sorted vector to merge
+ * @return 		merged sorted vector
+ */
 vector<int> mergeSortedVectors(vector<int> a, vector<int> b) {
     int alen = a.size();
     int blen = b.size();
@@ -167,14 +205,23 @@ int main(int argc, char *argv[]) {
 	// master process - reading and distributing input
 	if (myid == MASTER) {
 		vector<int> numbers = readInput();
+		if (!MEASURE) {
+			printVectorInRow(numbers);
+		}
 		inputSize = numbers.size();
 
-		// round to input to be able to evenly distribute it among lefs
+		cout << "input size: " << inputSize << endl;
+
+		// round to input to be able to evenly distribute it among leafs
 		while (inputSize % numberOfLeafs != 0) {
 			numbers.push_back(-1);
 			inputSize++;
 		}
 		msgSize = inputSize / numberOfLeafs;
+		cout << "num procs: " << numprocs << endl;
+		cout << "num leaf procs: " << numberOfLeafs << endl;
+		cout << "rounded input size: " << inputSize << endl;
+		cout << "msg size: " << msgSize << endl;
 	
 		if(MEASURE) {
 		    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeStart);
@@ -193,7 +240,7 @@ int main(int argc, char *argv[]) {
 	// leafs - sort its own part
 	if (myid >= numprocs - numberOfLeafs) {
 		for (int i = 0; i < msgSize; i++) {
-			MPI_Recv(&mynumber, 1, MPI_INT, 0, TAG_DISTRIBUTE, MPI_COMM_WORLD, &stat); //buffer,velikost,typ,rank odesilatele,tag, skupina, stat
+			MPI_Recv(&mynumber, 1, MPI_INT, 0, TAG_DISTRIBUTE, MPI_COMM_WORLD, &stat);
 			bucket.push_back(mynumber);
 		}
 		heapSort(&bucket[0], msgSize);
@@ -240,11 +287,7 @@ int main(int argc, char *argv[]) {
 	        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeEnd);
 	        measureTime(timeStart, timeEnd);
 	    } else {
-			for(int i=0; i < bucket.size(); ++i) {
-				if (bucket[i] != -1) {
-	        		cout << bucket[i] << endl;
-	        	}
-			}
+	    	printVectorInColumn(bucket);
 		}
 	}
 
