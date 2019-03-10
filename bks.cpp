@@ -129,6 +129,34 @@ void printVectorInColumn(vector<int> numbers) {
 }
 
 /**
+ * Merges two sorted vectors into one sorted vector
+ * @param a 	first sorted vector to merge
+ * @param b 	second sorted vector to merge
+ * @return 		merged sorted vector
+ */
+vector<int> mergeSortedVectors(vector<int> a, vector<int> b) {
+    int alen = a.size();
+    int blen = b.size();
+    int tlen = alen + blen;
+    vector<int> c(tlen);
+    int i = 0, j = 0, k = 0;
+ 
+    while (i < alen && j < blen) {
+        if (a[i] < b[j])
+            c[k++] = a[i++];
+        else
+            c[k++] = b[j++];
+    }
+    while (i < alen)
+        c[k++] = a[i++];
+ 
+    while (j < blen)
+        c[k++] = b[j++];
+ 
+    return c;
+}
+
+/**
  * Measure time and print result to std out, it make diff of start time and end time
  * Source: http://www.guyrutenberg.com/2007/09/22/profiling-code-using-clock_gettime/
  * @param timeStart
@@ -243,9 +271,7 @@ int main(int argc, char *argv[]) {
 				smallBucketTwo.push_back(mynumber);
 			}
 
-			merge(smallBucketOne.begin(), smallBucketOne.end(),
-					smallBucketTwo.begin(), smallBucketTwo.end(),
-					inserter(bucket, bucket.begin()));
+			bucket = mergeSortedVectors(smallBucketOne, smallBucketTwo);
 		}
 	}
 
