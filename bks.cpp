@@ -129,34 +129,6 @@ void printVectorInColumn(vector<int> numbers) {
 }
 
 /**
- * Merges two sorted vectors into one sorted vector
- * @param a 	first sorted vector to merge
- * @param b 	second sorted vector to merge
- * @return 		merged sorted vector
- */
-vector<int> mergeSortedVectors(vector<int> a, vector<int> b) {
-    int alen = a.size();
-    int blen = b.size();
-    int tlen = alen + blen;
-    vector<int> c(tlen);
-    int i = 0, j = 0, k = 0;
- 
-    while (i < alen && j < blen) {
-        if (a[i] < b[j])
-            c[k++] = a[i++];
-        else
-            c[k++] = b[j++];
-    }
-    while (i < alen)
-        c[k++] = a[i++];
- 
-    while (j < blen)
-        c[k++] = b[j++];
- 
-    return c;
-}
-
-/**
  * Measure time and print result to std out, it make diff of start time and end time
  * Source: http://www.guyrutenberg.com/2007/09/22/profiling-code-using-clock_gettime/
  * @param timeStart
@@ -210,18 +182,12 @@ int main(int argc, char *argv[]) {
 		}
 		inputSize = numbers.size();
 
-		cout << "input size: " << inputSize << endl;
-
 		// round to input to be able to evenly distribute it among leafs
 		while (inputSize % numberOfLeafs != 0) {
 			numbers.push_back(-1);
 			inputSize++;
 		}
 		msgSize = inputSize / numberOfLeafs;
-		cout << "num procs: " << numprocs << endl;
-		cout << "num leaf procs: " << numberOfLeafs << endl;
-		cout << "rounded input size: " << inputSize << endl;
-		cout << "msg size: " << msgSize << endl;
 	
 		if(MEASURE) {
 		    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &timeStart);
@@ -277,7 +243,9 @@ int main(int argc, char *argv[]) {
 				smallBucketTwo.push_back(mynumber);
 			}
 
-			bucket = mergeSortedVectors(smallBucketOne, smallBucketTwo);
+			merge(smallBucketOne.begin(), smallBucketOne.end(),
+					smallBucketTwo.begin(), smallBucketTwo.end(),
+					inserter(bucket, bucket.begin()));
 		}
 	}
 
