@@ -6,15 +6,14 @@
 if [ "$#" -gt 1 ]; then #there are more parameters than 1
     echo "Illegal number of parameters"
     exit 1
-elif [ "$#" -eq 1 ]; then #there is one parameter
-    if [ $1 -lt 1 ]; then
-        echo "Illegal value of numbers to sort"
-        exit 1
-    else
-    	numbers=$1;
-    fi
-else #there is no parameter
-    numbers=5;
+elif [ "$#" -eq 0 ]; then #there is none parameter
+    echo "Illegal number of parameters"
+    exit 1
+elif [ $1 -lt 1 ]; then
+    echo "Illegal value of numbers to sort"
+    exit 1
+else
+	numbers=$1;
 fi
 
 #create random numbers file
@@ -23,6 +22,7 @@ dd if=/dev/random bs=1 count=$numbers of=numbers 2>/dev/null
 #compile
 mpic++ --prefix /usr/local/share/OpenMPI -o bks bks.cpp
 
+#helper function to compute logarithm rounded up
 function log2 {
     local x=0
     for (( y=$1-1 ; $y > 0; y >>= 1 )) ; do
@@ -45,7 +45,7 @@ else
 fi
 
 #run
-mpirun --prefix /usr/local/share/OpenMPI --oversubscribe -np $proc bks $numbers
+mpirun --prefix /usr/local/share/OpenMPI -np $proc bks $numbers
 
 #remove
 rm -f bks numbers
